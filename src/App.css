@@ -36,3 +36,143 @@
     transform: rotate(360deg);
   }
 }
+body {
+  font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+  background: #f5f7fa;
+  margin: 0;
+  padding: 0;
+  color: #d7c4c4;
+}
+
+.app-container {
+  background: #074416;
+  padding: 20px;
+  margin: 20px auto;
+  border-radius: 12px;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+  max-width: 800px;
+}
+
+.titulo {
+  text-align: center;
+  color: #e3e6ec;
+  margin-bottom: 20px;
+}
+
+.subtitulo {
+  margin-top: 30px;
+  color: #efe8e8;
+  border-bottom: 2px solid #eee;
+  padding-bottom: 5px;
+}
+
+.form-gasto,
+.filtros {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 20px;
+}
+
+.input,
+.select{
+  flex: 1;
+  padding: 8px 10px;
+  border: 1px solid #ccc;
+  border-radius: 8px;
+  outline: none;
+  transition: 0.2s;
+}
+
+.input:focus,
+.select:focus {
+  border-color: #2d6cdf;
+  box-shadow: 0 0 5px rgba(45, 108, 223, 0.3);
+}
+
+.input-presupuesto {
+  width: 60px;           /* más corto */
+  padding: 4px 6px;      /* menos espacio interno */
+  margin-right: 6px;     /* separación con el texto */
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  outline: none;
+  text-align: right;     /* número alineado a la derecha */
+  font-size: 0.9em;      /* texto un poco más chico */
+}
+
+.input-presupuesto:focus {
+  border-color: #2d6cdf;
+  box-shadow: 0 0 4px rgba(45, 108, 223, 0.3);
+}
+
+
+.btn {
+  background: #28a745;
+  color: rgb(17, 1, 1);
+  border: none;
+  padding: 8px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: 0.2s;
+}
+
+.btn:hover {
+  background: #1a4cb3;
+}
+
+.btn-small {
+  background: #eaeaea;
+  border: none;
+  padding: 5px 8px;
+  border-radius: 6px;
+  margin-left: 5px;
+  cursor: pointer;
+}
+
+.btn-small:hover {
+  background: #ccc;
+}
+
+.rojo {
+  color: #fdd408;
+}
+
+.verde {
+  color: #28a745;
+  padding-right: 10px;
+}
+
+.gasto-item,
+.resumen-item {
+  display: flex;
+  justify-content: space-between;
+  padding: 8px 0;
+  border-bottom: 1px solid #eee;
+}
+
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.modal {
+  background: #fff;
+  padding: 20px;
+  border-radius: 12px;
+  max-width: 400px;
+  width: 90%;
+}
+
+.modal-buttons {
+  margin-top: 15px;
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
