@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "312230040551",
+    "project_id": "control-gastos-b0aeb",
+    "storage_bucket": "control-gastos-b0aeb.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:312230040551:android:73bbd06ae4f6d1341fe342",
+        "android_client_info": {
+          "package_name": "com.miloolivera.gestorgastos"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCwCIdJF13f64E3MBNp8uKAVgVstvXcmC0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

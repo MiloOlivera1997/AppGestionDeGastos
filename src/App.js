@@ -3,6 +3,8 @@ import "./App.css";
 import { db } from "./firebase";
 import { collection, addDoc, doc, updateDoc, deleteDoc, onSnapshot } from "firebase/firestore";
 
+
+
 function App() {
   const [mensaje, setMensaje] = useState("");
   const [fechaGasto, setFechaGasto] = useState(new Date().toISOString().slice(0, 10));
@@ -177,16 +179,17 @@ function App() {
         <div key={cat} className="resumen-item">
           <span>{cat}:</span>
           <span>
-            <input
+           
+            <strong className={presupuestos[cat] && total > presupuestos[cat] ? "rojo" : "verde"}>
+              {presupuestos[cat]? `${total.toFixed(2)} / ${presupuestos[cat]} €` : `${total.toFixed(2)} €`}
+            </strong>
+             <input
               type="number"
               value={presupuestos[cat] || ""}
               onChange={(e)=>setPresupuestos({...presupuestos,[cat]:Number(e.target.value)})}
               className="input-presupuesto"
               placeholder="€"
             />
-            <strong className={presupuestos[cat] && total > presupuestos[cat] ? "rojo" : "verde"}>
-              {presupuestos[cat]? `${total.toFixed(2)} / ${presupuestos[cat]} €` : `${total.toFixed(2)} €`}
-            </strong>
             {presupuestos[cat] && total > presupuestos[cat] && <span className="aviso"> ⚠️ Superado</span>}
           </span>
         </div>
