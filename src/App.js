@@ -1,10 +1,25 @@
 import React, { useState, useEffect, useRef } from "react";
 import "./App.css";
 import { db } from "./firebase";
-import { collection, addDoc, doc, updateDoc, deleteDoc, onSnapshot } from "firebase/firestore";
+import { collection, addDoc, doc, updateDoc, deleteDoc, onSnapshot, getDocs } from "firebase/firestore";
 
 
-
+async function guardarGasto(gasto) {
+  try {
+    await addDoc(collection(db, "gastos"), gasto);
+    console.log("Gasto guardado en Firestore ✅");
+  } catch (e) {
+    console.error("Error guardando gasto: ", e);
+  }
+}
+async function obtenerGastos() {
+  const querySnapshot = await getDocs(collection(db, "gastos"));
+  let lista = [];
+  querySnapshot.forEach((doc) => {
+    lista.push({ id: doc.id, ...doc.data() });
+  });
+  return lista;
+}
 function App() {
   const [mensaje, setMensaje] = useState("");
   const [fechaGasto, setFechaGasto] = useState(new Date().toISOString().slice(0, 10));
@@ -172,6 +187,9 @@ function App() {
           </div>
         </div>
       }
+
+
+
 
       {/* Resumen */}
       <h2 className="subtitulo">📊 Resumen</h2>
