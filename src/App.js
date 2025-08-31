@@ -1,225 +1,185 @@
-import React, { useState, useEffect, useRef } from "react";
-import "./App.css";
-import { db } from "./firebase";
-import { collection, addDoc, doc, updateDoc, deleteDoc, onSnapshot, getDocs } from "firebase/firestore";
+import React, { useState, useEffect } from "react";
+import { View, Text, TextInput, TouchableOpacity, FlatList, ScrollView, Alert, StyleSheet } from "react-native";
+import Modal from "react-native-modal";
+import { db, auth } from "./firebase";
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { 
+  collection, addDoc, doc, updateDoc, deleteDoc, onSnapshot, getDoc, setDoc 
+} from "firebase/firestore";
+import { 
+  createUserWithEmailAndPassword, 
+  signInWithEmailAndPassword, 
+  sendPasswordResetEmail,
+  signOut,
+  onAuthStateChanged
+} from "firebase/auth";
 
-
-async function guardarGasto(gasto) {
-  try {
-    await addDoc(collection(db, "gastos"), gasto);
-    console.log("Gasto guardado en Firestore ✅");
-  } catch (e) {
-    console.error("Error guardando gasto: ", e);
-  }
-}
-async function obtenerGastos() {
-  const querySnapshot = await getDocs(collection(db, "gastos"));
-  let lista = [];
-  querySnapshot.forEach((doc) => {
-    lista.push({ id: doc.id, ...doc.data() });
-  });
-  return lista;
-}
-function App() {
+export default function App() {
+  // Estados auth y gastos
+  const [usuario, setUsuario] = useState(null);
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [mensaje, setMensaje] = useState("");
-  const [fechaGasto, setFechaGasto] = useState(new Date().toISOString().slice(0, 10));
+  const [fechaGasto, setFechaGasto] = useState(new Date().toISOString().slice(0,10));
   const [gastos, setGastos] = useState([]);
-  const [mesSeleccionado, setMesSeleccionado] = useState("");
-  const [categoriaSeleccionada, setCategoriaSeleccionada] = useState("");
   const [editando, setEditando] = useState(null);
-
   const [presupuestos, setPresupuestos] = useState({
-    supermercado: 200,
-    gimnasio: 50,
-    casa: 500,
-    placer: 100,
-    otros: 50,
+    supermercado: 200, gimnasio: 50, casa: 500, placer: 100, otros: 50,
   });
 
   const categorias = {
-    supermercado: ["carrefour", "mercadona", "aldi", "lidl"],
-    gimnasio: ["gimnasio", "gym", "fitness"],
-    casa: ["alquiler", "agua", "luz", "gas"],
-    placer: ["cine", "netflix", "restaurante", "ocio"],
+    supermercado: ["carrefour","mercadona","aldi","lidl"],
+    gimnasio: ["gimnasio","gym","fitness"],
+    casa: ["alquiler","agua","luz","gas"],
+    placer: ["cine","netflix","restaurante","ocio"]
   };
 
-  // 🔹 Referencia al input
-  const inputRef = useRef(null);
-
-  // 🔹 Escucha en tiempo real los cambios en Firebase
+  // Auth listener
   useEffect(() => {
-    const unsubscribe = onSnapshot(collection(db, "gastos"), (snapshot) => {
-      const lista = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      setGastos(lista);
-    });
+    const unsubscribe = onAuthStateChanged(auth, (user)=>setUsuario(user));
     return () => unsubscribe();
   }, []);
 
-  const detectarCategoria = (texto) => {
+  // Escucha gastos
+  useEffect(()=>{
+    if(!usuario) return;
+    const unsubscribe = onSnapshot(
+      collection(db, "usuarios", usuario.uid, "gastos"),
+      (snapshot)=>setGastos(snapshot.docs.map(doc=>({id:doc.id,...doc.data()})))
+    );
+    return ()=>unsubscribe();
+  }, [usuario]);
+
+  // Cargar presupuestos
+  useEffect(()=>{
+    if(!usuario) return;
+    const cargar = async ()=>{
+      const docRef = doc(db,"usuarios",usuario.uid,"config","presupuestos");
+      const docSnap = await getDoc(docRef);
+      if(docSnap.exists()) setPresupuestos(docSnap.data());
+      const local = await AsyncStorage.getItem(`presupuestos-${usuario.uid}`);
+      if(local) setPresupuestos(JSON.parse(local));
+    }
+    cargar();
+  }, [usuario]);
+
+  // Funciones auth
+  const registrarUsuario = async()=>{ try{ await createUserWithEmailAndPassword(auth,email,password); Alert.alert("Registrado ✅"); }catch(e){Alert.alert(e.message)} }
+  const loginUsuario = async()=>{ try{ await signInWithEmailAndPassword(auth,email,password); }catch(e){Alert.alert(e.message)} }
+  const logoutUsuario = async()=>{ await signOut(auth); }
+  const recuperarContrasena = async()=>{ try{ await sendPasswordResetEmail(auth,email); Alert.alert("Email enviado ✅"); }catch(e){Alert.alert(e.message)} }
+
+  // Gastos
+  const detectarCategoria = (texto)=>{
     const lower = texto.toLowerCase();
-    for (const [cat, palabras] of Object.entries(categorias)) {
-      if (palabras.some(p => lower.includes(p))) return cat;
+    for(const [cat, palabras] of Object.entries(categorias)){
+      if(palabras.some(p=>lower.includes(p))) return cat;
     }
     return "otros";
-  };
+  }
 
-  const agregarGasto = async () => {
-    if (!mensaje.trim()) return;
+  const agregarGasto = async()=>{
+    if(!usuario) return Alert.alert("Debes iniciar sesión");
+    if(!mensaje.trim()) return;
     const regex = /(.*?)(\d+[.,]?\d*)/;
     const match = mensaje.match(regex);
-    if (!match) return;
-
+    if(!match) return;
     const descripcion = match[1].trim();
-    const importe = parseFloat(match[2].replace(",", "."));
+    const importe = parseFloat(match[2].replace(",","."));
     const categoria = detectarCategoria(descripcion);
-
     const fecha = new Date(fechaGasto);
     const nuevo = {
-      descripcion,
-      importe,
-      categoria,
+      descripcion, importe, categoria,
       fecha: fecha.toISOString(),
-      mes: `${fecha.getFullYear()}-${(fecha.getMonth() + 1).toString().padStart(2, "0")}`,
+      mes: `${fecha.getFullYear()}-${(fecha.getMonth()+1).toString().padStart(2,"0")}`
     };
+    if(editando){
+      await updateDoc(doc(db,"usuarios",usuario.uid,"gastos",editando.id),nuevo);
+      setEditando(null);
+    }else{
+      await addDoc(collection(db,"usuarios",usuario.uid,"gastos"),nuevo);
+    }
+    setMensaje(""); setFechaGasto(new Date().toISOString().slice(0,10));
+  }
 
-    await addDoc(collection(db, "gastos"), nuevo);
+  const eliminarGasto = async(id)=>{
+    Alert.alert("Eliminar","¿Seguro?",[
+      {text:"Cancelar"}, {text:"Eliminar",onPress: async()=>{ await deleteDoc(doc(db,"usuarios",usuario.uid,"gastos",id))}}
+    ])
+  }
 
-    setMensaje("");
-    setFechaGasto(new Date().toISOString().slice(0, 10));
-    inputRef.current.focus(); // 🔹 Coloca el cursor de nuevo en el input
-  };
+  const actualizarPresupuesto = async(cat,valor)=>{
+    const nuevo = {...presupuestos,[cat]:valor};
+    setPresupuestos(nuevo);
+    if(!usuario) return;
+    await setDoc(doc(db,"usuarios",usuario.uid,"config","presupuestos"),nuevo);
+    await AsyncStorage.setItem(`presupuestos-${usuario.uid}`,JSON.stringify(nuevo));
+  }
 
-  const editarGasto = (gasto) => {
-    setEditando({ ...gasto, fecha: gasto.fecha.slice(0, 10) });
-  };
+  if(!usuario){
+    return (
+      <View style={styles.container}>
+        <Text style={styles.title}>Login / Registro</Text>
+        <TextInput placeholder="Email" value={email} onChangeText={setEmail} style={styles.input}/>
+        <TextInput placeholder="Password" value={password} onChangeText={setPassword} secureTextEntry style={styles.input}/>
+        <TouchableOpacity style={styles.button} onPress={loginUsuario}><Text style={styles.btnText}>Login</Text></TouchableOpacity>
+        <TouchableOpacity style={styles.button} onPress={registrarUsuario}><Text style={styles.btnText}>Registrar</Text></TouchableOpacity>
+        <TouchableOpacity style={styles.buttonSecondary} onPress={recuperarContrasena}><Text style={styles.btnText}>Recuperar contraseña</Text></TouchableOpacity>
+      </View>
+    )
+  }
 
-  const guardarEdicion = async () => {
-    const fecha = new Date(editando.fecha);
-    const gastoRef = doc(db, "gastos", editando.id);
-    await updateDoc(gastoRef, {
-      descripcion: editando.descripcion,
-      importe: parseFloat(editando.importe),
-      fecha: fecha.toISOString(),
-      categoria: editando.categoria,
-      mes: `${fecha.getFullYear()}-${(fecha.getMonth() + 1).toString().padStart(2, "0")}`,
-    });
-    setEditando(null);
-  };
-
-  const eliminarGasto = async (id) => {
-    await deleteDoc(doc(db, "gastos", id));
-  };
-
-  // Filtrado por mes y categoría
-  const gastosFiltrados = gastos
-    .filter(g => !mesSeleccionado || g.mes === mesSeleccionado)
-    .filter(g => !categoriaSeleccionada || g.categoria === categoriaSeleccionada);
-
-  // Totales por categoría
-  const totales = gastosFiltrados.reduce((acc, g) => {
-    acc[g.categoria] = (acc[g.categoria] || 0) + g.importe;
-    return acc;
-  }, {});
-
-  const totalGeneral = Object.values(totales).reduce((a, b) => a + b, 0);
-  const mesesDisponibles = [...new Set(gastos.map(g => g.mes))];
+  const totales = gastos.reduce((acc,g)=>{ acc[g.categoria]=(acc[g.categoria]||0)+g.importe; return acc; },{})
+  const totalGeneral = Object.values(totales).reduce((a,b)=>a+b,0)
 
   return (
-    <div className="app-container">
-      <h1 className="titulo">💸 Registro de Gastos</h1>
+    <ScrollView style={styles.container}>
+      <TouchableOpacity style={styles.logout} onPress={logoutUsuario}><Text style={{color:'white'}}>Cerrar sesión</Text></TouchableOpacity>
+      <Text style={styles.title}>💸 Gastos</Text>
 
-      {/* Nuevo gasto */}
-      <div className="form-gasto">
-        <input
-          ref={inputRef}
-          className="input"
-          placeholder="Ej: Carrefour 30"
-          value={mensaje}
-          onChange={(e) => setMensaje(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && agregarGasto()}
-        />
-        <input
-          className="input"
-          type="date"
-          value={fechaGasto}
-          onChange={(e) => setFechaGasto(e.target.value)}
-        />
-        <button className="btn" onClick={agregarGasto}>➕ Añadir</button>
-      </div>
+      <TextInput placeholder="Ej: Carrefour 30" value={mensaje} onChangeText={setMensaje} style={styles.input}/>
+      <TextInput placeholder="Fecha (YYYY-MM-DD)" value={fechaGasto} onChangeText={setFechaGasto} style={styles.input}/>
+      <TouchableOpacity style={styles.button} onPress={agregarGasto}><Text style={styles.btnText}>{editando?"Guardar":"Añadir"}</Text></TouchableOpacity>
 
-      {/* Filtros */}
-      <div className="filtros">
-        <select className="select" value={mesSeleccionado} onChange={(e) => setMesSeleccionado(e.target.value)}>
-          <option value="">Todos los meses</option>
-          {mesesDisponibles.map(m => <option key={m} value={m}>{m}</option>)}
-        </select>
-        <select className="select" value={categoriaSeleccionada} onChange={(e) => setCategoriaSeleccionada(e.target.value)}>
-          <option value="">Todas las categorías</option>
-          {Object.keys(categorias).concat("otros").map(cat => <option key={cat} value={cat}>{cat}</option>)}
-        </select>
-      </div>
-
-      {/* Historial */}
-      <h2 className="subtitulo">📜 Historial</h2>
-      {gastosFiltrados.length === 0 ? <p>No hay gastos</p> :
-        gastosFiltrados.map(g => (
-          <div key={g.id} className="gasto-item">
-            <span>{g.descripcion} - {g.importe.toFixed(2)}€ ({g.categoria}) [{g.fecha.slice(0,10)}]</span>
-            <span>
-              <button className="btn-small" onClick={() => editarGasto(g)}>✏️</button>
-              <button className="btn-small rojo" onClick={() => eliminarGasto(g.id)}>🗑️</button>
-            </span>
-          </div>
-        ))}
-
-      {/* Modal edición */}
-      {editando &&
-        <div className="modal-overlay">
-          <div className="modal">
-            <h3>Editar gasto</h3>
-            <input className="input" value={editando.descripcion} onChange={(e)=>setEditando({...editando, descripcion:e.target.value})}/>
-            <input className="input" type="number" value={editando.importe} onChange={(e)=>setEditando({...editando, importe:e.target.value})}/>
-            <input className="input" type="date" value={editando.fecha} onChange={(e)=>setEditando({...editando, fecha:e.target.value})}/>
-            <div className="modal-buttons">
-              <button className="btn" onClick={guardarEdicion}>💾 Guardar</button>
-              <button className="btn rojo" onClick={()=>setEditando(null)}>❌ Cancelar</button>
-            </div>
-          </div>
-        </div>
-      }
-
-
-
-
-      {/* Resumen */}
-      <h2 className="subtitulo">📊 Resumen</h2>
-      {Object.entries(totales).map(([cat,total])=>(
-        <div key={cat} className="resumen-item">
-          <span>{cat}:</span>
-          <span>
-           
-            <strong className={presupuestos[cat] && total > presupuestos[cat] ? "rojo" : "verde"}>
-              {presupuestos[cat]? `${total.toFixed(2)} / ${presupuestos[cat]} €` : `${total.toFixed(2)} €`}
-            </strong>
-             <input
-              type="number"
-              value={presupuestos[cat] || ""}
-              onChange={(e)=>setPresupuestos({...presupuestos,[cat]:Number(e.target.value)})}
-              className="input-presupuesto"
-              placeholder="€"
-            />
-            {presupuestos[cat] && total > presupuestos[cat] && <span className="aviso"> ⚠️ Superado</span>}
-          </span>
-        </div>
+      <Text style={styles.subtitle}>📊 Presupuestos</Text>
+      {Object.entries(presupuestos).map(([cat,val])=>(
+        <View key={cat} style={styles.presupuestoRow}>
+          <Text>{cat}: {totales[cat]? totales[cat].toFixed(2):0} / {val} €</Text>
+          <TextInput style={styles.presInput} keyboardType="numeric" value={val.toString()} onChangeText={v=>actualizarPresupuesto(cat,Number(v))}/>
+          {totales[cat] && val && totales[cat]>val && <Text style={{color:'red'}}>⚠️</Text>}
+        </View>
       ))}
 
-      {/* Total general */}
-      <h3 className={Object.values(presupuestos).some(p=>p>0) && totalGeneral>Object.values(presupuestos).reduce((a,b)=>a+b,0) ? "rojo" : "verde"}>
-        Total: {totalGeneral.toFixed(2)}€ / {Object.values(presupuestos).some(p=>p>0) ? Object.values(presupuestos).reduce((a,b)=>a+b,0) : "∞"}€
-        {Object.values(presupuestos).some(p=>p>0) && totalGeneral>Object.values(presupuestos).reduce((a,b)=>a+b,0) && <span className="aviso"> ⚠️ Superado</span>}
-      </h3>
-    </div>
+      <Text style={styles.subtitle}>📜 Historial</Text>
+      <FlatList data={gastos} keyExtractor={item=>item.id} renderItem={({item})=>(
+        <View style={styles.card}>
+          <Text style={styles.cardText}>{item.descripcion} - {item.importe} € ({item.categoria})</Text>
+          <View style={styles.cardButtons}>
+            <TouchableOpacity style={styles.btnSmall} onPress={()=>setEditando(item)}><Text>✏️</Text></TouchableOpacity>
+            <TouchableOpacity style={styles.btnSmallRed} onPress={()=>eliminarGasto(item.id)}><Text>🗑️</Text></TouchableOpacity>
+          </View>
+        </View>
+      )}/>
+      <Text style={styles.total}>Total: {totalGeneral.toFixed(2)} €</Text>
+    </ScrollView>
   )
 }
 
-export default App;
+const styles = StyleSheet.create({
+  container:{padding:20,flex:1,backgroundColor:'#f9f9f9'},
+  title:{fontSize:24,fontWeight:'bold',marginBottom:10},
+  subtitle:{fontSize:18,fontWeight:'bold',marginTop:10,marginBottom:5},
+  input:{borderWidth:1,borderColor:'#ccc',padding:8,marginBottom:5,borderRadius:5,backgroundColor:'white'},
+  button:{backgroundColor:'#4CAF50',padding:10,borderRadius:5,marginVertical:5,alignItems:'center'},
+  buttonSecondary:{backgroundColor:'#2196F3',padding:10,borderRadius:5,marginVertical:5,alignItems:'center'},
+  btnText:{color:'white',fontWeight:'bold'},
+  logout:{backgroundColor:'red',padding:8,borderRadius:5,alignItems:'center',marginBottom:10},
+  presupuestoRow:{flexDirection:'row',alignItems:'center',justifyContent:'space-between',marginVertical:3},
+  presInput:{borderWidth:1,borderColor:'#ccc',padding:3,width:60,borderRadius:3,backgroundColor:'white'},
+  card:{backgroundColor:'white',padding:10,borderRadius:5,marginVertical:3,flexDirection:'row',justifyContent:'space-between',alignItems:'center',elevation:2},
+  cardText:{flex:1},
+  cardButtons:{flexDirection:'row'},
+  btnSmall:{marginHorizontal:3,padding:5,backgroundColor:'#ddd',borderRadius:3},
+  btnSmallRed:{marginHorizontal:3,padding:5,backgroundColor:'#f66',borderRadius:3},
+  total:{fontWeight:'bold',marginTop:10,fontSize:16}
+})
